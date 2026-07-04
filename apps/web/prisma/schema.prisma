@@ -1,0 +1,185 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model Organization {
+  id        String   @id @default(cuid())
+  name      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  users         User[]
+  leads         Lead[]
+  conversations Conversation[]
+  campaigns     Campaign[]
+  integrations  Integration[]
+  phoneNumbers  PhoneNumber[]
+}
+
+model User {
+  id             String @id @default(cuid())
+  email          String @unique
+  name           String?
+  organizationId String
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Lead {
+  id             String  @id @default(cuid())
+  organizationId String
+  source         String // facebook, google, website, manual, etc.
+  sourceId       String? // external ID from lead source
+
+  firstName String?
+  lastName  String?
+  email     String?
+  phone     String?
+  language  String @default("en")
+  status    String @default("new") // new, contacted, qualified, appointment_set, lost
+
+  notes String?
+
+  organization  Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  conversations Conversation[]
+  enrollments   CampaignEnrollment[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([organizationId])
+  @@index([source])
+}
+
+model Conversation {
+  id             String @id @default(cuid())
+  organizationId String
+  leadId         String
+  channel        String // sms, chat, email, call
+  status         String @default("active")
+
+  lead         Lead      @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  messages     Message[]
+  calls        CallLog[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([organizationId])
+  @@index([leadId])
+}
+
+model Message {
+  id             String @id @default(cuid())
+  conversationId String
+  role           String // user, assistant, system
+  content        String
+  metadata       Json? // provider-specific data
+
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@index([conversationId])
+}
+
+model Campaign {
+  id             String @id @default(cuid())
+  organizationId String
+  name           String
+  description    String?
+  status         String @default("draft") // draft, active, paused, archived
+  trigger        String // new_lead, status_change, manual
+
+  organization Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  steps        CampaignStep[]
+  enrollments  CampaignEnrollment[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model CampaignStep {
+  id        String @id @default(cuid())
+  campaignId String
+  name      String
+  channel   String // sms, email, call
+  delayMinutes Int @default(0)
+  promptTemplate String // AI prompt or message template
+  order     Int
+
+  campaign Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+}
+
+model CampaignEnrollment {
+  id          String @id @default(cuid())
+  campaignId  String
+  leadId      String
+  currentStep Int    @default(0)
+  status      String @default("active") // active, completed, paused
+
+  campaign Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  lead     Lead     @relation(fields: [leadId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([campaignId, leadId])
+}
+
+model Integration {
+  id             String @id @default(cuid())
+  organizationId String
+  type           String // facebook_ads, google_ads, twilio, vapi
+  config         Json
+  isActive       Boolean @default(true)
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([organizationId, type])
+}
+
+model PhoneNumber {
+  id             String @id @default(cuid())
+  organizationId String
+  phoneNumber    String
+  provider       String @default("twilio")
+  purpose        String @default("sms") // sms, voice, both
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model CallLog {
+  id             String @id @default(cuid())
+  conversationId String
+  providerCallId String?
+  direction      String // inbound, outbound
+  status         String // initiated, completed, failed, voicemail
+  durationSeconds Int?
+  recordingUrl   String?
+  transcript     String?
+
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
