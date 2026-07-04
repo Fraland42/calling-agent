@@ -54,6 +54,51 @@ async function main() {
     update: {},
   });
 
+  const sampleLead = await prisma.lead.upsert({
+    where: { id: "sample-lead-1" },
+    create: {
+      id: "sample-lead-1",
+      organizationId: org.id,
+      source: "facebook_ads",
+      firstName: "Jane",
+      lastName: "Doe",
+      email: "jane@example.com",
+      phone: "+15551234567",
+      language: "en",
+      status: "new",
+      notes: "Interested in buying a home in Austin, TX",
+    },
+    update: {},
+  });
+
+  const chatConversation = await prisma.conversation.upsert({
+    where: { id: "sample-conversation-1" },
+    create: {
+      id: "sample-conversation-1",
+      organizationId: org.id,
+      leadId: sampleLead.id,
+      channel: "chat",
+      status: "active",
+    },
+    update: {},
+  });
+
+  await prisma.message.createMany({
+    data: [
+      {
+        conversationId: chatConversation.id,
+        role: "user",
+        content: "Hi, I'm looking for a 3-bedroom home in Austin.",
+      },
+      {
+        conversationId: chatConversation.id,
+        role: "assistant",
+        content: "Great! What's your budget and preferred move-in timeline?",
+      },
+    ],
+    skipDuplicates: false,
+  });
+
   console.log("Seed completed.");
 }
 
